@@ -118,11 +118,21 @@ async function load(){
   const p=sym.includes('JPY')?3:sym.includes('XAU')?2:5;
   series.applyOptions({priceFormat:{type:'price',precision:p,minMove:1/10**p}});
   series.setData(c.map(x=>({time:x.t,open:x.o,high:x.h,low:x.l,close:x.c})));
-  series.setMarkers(A.sweeps.filter(w=>w.j>=A.n-150).slice(-6).map(w=>({time:w.t,position:w.side==='H'?'aboveBar':'belowBar',color:w.side==='H'?'#ff5d73':'#3ddc97',shape:w.side==='H'?'arrowDown':'arrowUp',text:'sweep'})));
+  const mk=A.sweeps.filter(w=>w.j>=A.n-150).slice(-6).map(w=>({time:w.t,position:w.side==='H'?'aboveBar':'belowBar',color:w.side==='H'?'#ff5d73':'#3ddc97',shape:w.side==='H'?'arrowDown':'arrowUp',text:'sweep'}))
+   .concat(A.EV.slice(-8).map(e=>({time:e.t,position:e.dir===1?'belowBar':'aboveBar',color:e.dir===1?'#3ddc97':'#ff5d73',shape:'circle',text:e.type})));
+  mk.sort((a,b)=>a.time-b.time);series.setMarkers(mk);overlay();
   if(first){ts.setVisibleLogicalRange({from:A.n-90,to:A.n+8});first=false}
   sel=-1;mark();
  }catch(e){err=e.message}
  render();draw();
+}
+let zl=[];
+function overlay(){
+ zl.forEach(l=>series.removePriceLine(l));zl=[];
+ const px=A.c[A.n-1].c,add=(price,color,title,st)=>zl.push(series.createPriceLine({price,color,lineWidth:1,lineStyle:st,axisLabelVisible:false,title}));
+ A.Z.filter(z=>!z.dead&&z.i0>=A.n-200).sort((a,b)=>Math.abs((a.top+a.bot)/2-px)-Math.abs((b.top+b.bot)/2-px)).slice(0,6).forEach(z=>{
+  const c=z.dir===1?'#3ddc97':'#ff5d73',st=z.kind==='OB'?0:2;add(z.top,c,z.kind+(z.dir===1?' bull':' bear'),st);add(z.bot,c,'',st)});
+ [[A.liqH.slice(-3),'BSL','EQH'],[A.liqL.slice(-3),'SSL','EQL']].forEach(([a,t,e])=>a.forEach(s=>add(s.p,'#e8b04a',s.eq?e:t,1)));
 }
 const nm=v=>v>0?'Bullish':v<0?'Bearish':'Range';
 function mark(){lines.forEach(l=>series.removePriceLine(l));lines=[];
@@ -147,7 +157,7 @@ function render(){
 function draw(){
  const w=box.clientWidth,h=box.clientHeight,r=devicePixelRatio||1;
  if(cv.width!==Math.round(w*r)||cv.height!==Math.round(h*r)){cv.width=w*r;cv.height=h*r}
- ctx.setTransform(r,0,0,r,0,0);ctx.clearRect(0,0,w,h);if(!A)return;
+ ctx.setTransform(r,0,0,r,0,0);ctx.clearRect(0,0,w,h);return;
  const X=t=>{const x=ts.timeToCoordinate(t);return x==null?-20:x},Y=p=>series.priceToCoordinate(p),px=A.c[A.n-1].c;
  ctx.font='bold 11px system-ui';ctx.lineWidth=1.5;ctx.textBaseline='alphabetic';
  const zs=A.Z.filter(z=>!z.dead&&z.i0>=A.n-200).sort((a,b)=>Math.abs((a.top+a.bot)/2-px)-Math.abs((b.top+b.bot)/2-px)).slice(0,8);
