@@ -31,7 +31,7 @@ details{margin-top:6px}input{width:100%;margin:6px 0}
  <span id="tfs"></span><button id="rf">Refresh</button>
 </div>
 <div id="st">Loading…</div>
-<div id="wrap"><div id="ch"></div><canvas id="cv"></canvas></div>
+<div id="wrap"><div id="ch"></div></div>
 <div id="panel"></div>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>window.LightweightCharts||document.write('<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"><\/script>')</script>
@@ -40,11 +40,42 @@ const $=s=>document.querySelector(s);
 const ls=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k)||'';localStorage.setItem(k,v)}catch(e){return ''}};
 const TFS={'5m':['5min','1h'],'15m':['15min','1h'],'1h':['1h','4h'],'4h':['4h','1day']};
 let tf=ls('tf')||'15m',sym=ls('sym')||'XAU/USD',key=ls('key'),A=null,E=[],sel=-1,lines=[],cache={},htf=0,err='',first=true;
-const box=$('#wrap'),cv=$('#cv'),ctx=cv.getContext('2d');
+const box=$('#wrap');
 const chart=LightweightCharts.createChart($('#ch'),{autoSize:true,layout:{background:{color:'#0d1117'},textColor:'#8b96a3'},
  grid:{vertLines:{color:'#161d26'},horzLines:{color:'#161d26'}},timeScale:{timeVisible:true,borderColor:'#262e38'},rightPriceScale:{borderColor:'#262e38'}});
 const series=chart.addCandlestickSeries({upColor:'#3ddc97',downColor:'#ff5d73',borderVisible:false,wickUpColor:'#3ddc97',wickDownColor:'#ff5d73'});
 const ts=chart.timeScale();
+class ZR{constructor(p){this.p=p}
+ draw(t){t.useMediaCoordinateSpace(({context:c,mediaSize:m})=>{const P=this.p;if(!P.chart)return;
+  for(const z of P.zs){const y1=P.series.priceToCoordinate(z.top),y2=P.series.priceToCoordinate(z.bot);if(y1==null||y2==null)continue;
+   let x=P.chart.timeScale().timeToCoordinate(z.t);x=x==null?0:Math.max(0,x);
+   c.fillStyle=z.fill;c.fillRect(x,y1,m.width-x,y2-y1);c.strokeStyle=z.line;c.lineWidth=1;c.strokeRect(x+.5,y1+.5,m.width-x,y2-y1);
+   c.fillStyle=z.line;c.font='bold 10px system-ui';c.fillText(z.label,x+4,y1+11)}})}}
+class ZP{constructor(){this.zs=[];this.pv={renderer:()=>new ZR(this),zOrder:()=>'bottom'}}
+ attached(a){this.chart=a.chart;this.series=a.series;this.req=a.requestUpdate}
+ detached(){this.chart=null}
+ paneViews(){return[this.pv]}
+ set(z){this.zs=z;if(this.req)this.req()}}
+const zp=new ZP();series.attachPrimitive(zp);
+const PRE={
+ Dark:{bg:'#0d1117',pn:'#151b23',tx:'#d7dde5',ln:'#262e38',gr:'#161d26',mut:'#7d8896',up:'#3ddc97',dn:'#ff5d73',fvg:'#4aa3ff',ob:'#b58cff',liq:'#e8b04a'},
+ Black:{bg:'#000000',pn:'#0b0b0b',tx:'#e6e6e6',ln:'#222222',gr:'#141414',mut:'#888888',up:'#00c853',dn:'#e53935',fvg:'#29b6f6',ob:'#ab47bc',liq:'#ffb300'},
+ Light:{bg:'#ffffff',pn:'#f3f5f8',tx:'#1b2430',ln:'#d5dbe3',gr:'#eceff3',mut:'#5b6776',up:'#0f9d6b',dn:'#d6334c',fvg:'#1e6fd9',ob:'#8a4fd8',liq:'#c78a00'}};
+let TH=Object.assign({},PRE.Dark);try{Object.assign(TH,JSON.parse(ls('th')||'{}'))}catch(e){}
+const hexA=(h,a)=>{const n=parseInt(h.slice(1),16);return`rgba(${n>>16},${n>>8&255},${n&255},${a})`};
+function applyTheme(){
+ const r=document.documentElement.style;for(const k of['bg','pn','tx','ln','mut','up','dn'])r.setProperty('--'+k,TH[k]);
+ document.body.style.background=TH.bg;
+ chart.applyOptions({layout:{background:{color:TH.bg},textColor:TH.mut},grid:{vertLines:{color:TH.gr},horzLines:{color:TH.gr}},timeScale:{borderColor:TH.ln},rightPriceScale:{borderColor:TH.ln}});
+ series.applyOptions({upColor:TH.up,downColor:TH.dn,wickUpColor:TH.up,wickDownColor:TH.dn});
+ paint();
+}
+let thOpen=false;
+function themeUI(){
+ const pk=[['up','Candle up'],['dn','Candle down'],['bg','Background'],['fvg','FVG boxes'],['ob','Order block boxes'],['liq','Liquidity lines']];
+ return `<details id="th" ${thOpen?'open':''} style="margin-top:6px"><summary class="mut">Theme</summary><div style="margin:8px 0">${Object.keys(PRE).map(n=>`<button data-p="${n}" style="margin-right:6px">${n}</button>`).join('')}</div>`+
+ pk.map(([k,l])=>`<label class="mut" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0">${l}<input type="color" data-c="${k}" value="${TH[k]}" style="width:56px;padding:2px"></label>`).join('')+`</details>`;
+}
 
 async function td(s,i,size){
  const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s)}&interval=${i}&outputsize=${size}&order=ASC&timezone=UTC&apikey=${key}`);
@@ -64,7 +95,7 @@ function analyse(c){
   if(lH&&!lH.used&&c[i].c>lH.p){EV.push({i,t:c[i].t,dir:1,type:trend===-1?'CHoCH':'BOS',sw:lH,org:lL});lH.used=1;trend=1}
   else if(lL&&!lL.used&&c[i].c<lL.p){EV.push({i,t:c[i].t,dir:-1,type:trend===1?'CHoCH':'BOS',sw:lL,org:lH});lL.used=1;trend=-1}
  }
- const chk=(z,from)=>{for(let j=from;j<n;j++){const x=c[j];if(z.dir===1){if(x.c<z.bot){z.dead=1;return}if(x.l<=z.top)z.touched=1}else{if(x.c>z.top){z.dead=1;return}if(x.h>=z.bot)z.touched=1}}};
+ const chk=(z,from)=>{for(let j=from;j<n;j++){const x=c[j];if(z.dir===1){if(z.kind==='FVG'?x.l<=z.bot:x.c<z.bot){z.dead=1;return}if(x.l<=z.top)z.touched=1}else{if(z.kind==='FVG'?x.h>=z.top:x.c>z.top){z.dead=1;return}if(x.h>=z.bot)z.touched=1}}};
  for(let i=2;i<n;i++){let z=null;
   if(c[i].l-c[i-2].h>.1*atr)z={dir:1,top:c[i].l,bot:c[i-2].h};
   else if(c[i-2].l-c[i].h>.1*atr)z={dir:-1,top:c[i-2].l,bot:c[i].h};
@@ -88,7 +119,7 @@ function entries(A,hb){
  for(const z of Z){
   if(z.dead||z.dir!==d||z.i0<e.org.i-2)continue;
   const entry=(z.top+z.bot)/2;if(Math.abs(entry-px)>5*atr)continue;
-  const sl=d===1?z.bot-.25*atr:z.top+.25*atr,risk=Math.abs(entry-sl);
+  const sl=d===1?Math.min(z.bot-.25*atr,entry-atr):Math.max(z.top+.25*atr,entry+atr),risk=Math.abs(entry-sl);
   const ext=d===1?Math.max(...last.map(x=>x.h)):Math.min(...last.map(x=>x.l));
   const tg=(d===1?liqH.map(s=>s.p).concat(ext).filter(p=>p>entry).sort((a,b)=>a-b):liqL.map(s=>s.p).concat(ext).filter(p=>p<entry).sort((a,b)=>b-a));
   const tp=tg.find(p=>Math.abs(p-entry)/risk>=2);if(!tp)continue;
@@ -101,6 +132,7 @@ function entries(A,hb){
   if(d===1?entry<mid:entry>mid){s+=10;why.push(d===1?'Entry in discount':'Entry in premium')}
   if(kn){s+=5;why.push(kn+' killzone')}
   if(!z.touched){s+=5;why.push('Zone untouched')}
+  if(hb!==0&&hb!==d)s=Math.min(s,59);
   const r=s>=80?'A+':s>=60?'B':s>=45?'C':'';if(!r)continue;
   out.push({z,d,entry,sl,tp,rr:Math.abs(tp-entry)/risk,s,r,why,inz:px<=z.top&&px>=z.bot});
  }
@@ -118,9 +150,7 @@ async function load(){
   const p=sym.includes('JPY')?3:sym.includes('XAU')?2:5;
   series.applyOptions({priceFormat:{type:'price',precision:p,minMove:1/10**p}});
   series.setData(c.map(x=>({time:x.t,open:x.o,high:x.h,low:x.l,close:x.c})));
-  const mk=A.sweeps.filter(w=>w.j>=A.n-150).slice(-6).map(w=>({time:w.t,position:w.side==='H'?'aboveBar':'belowBar',color:w.side==='H'?'#ff5d73':'#3ddc97',shape:w.side==='H'?'arrowDown':'arrowUp',text:'sweep'}))
-   .concat(A.EV.slice(-8).map(e=>({time:e.t,position:e.dir===1?'belowBar':'aboveBar',color:e.dir===1?'#3ddc97':'#ff5d73',shape:'circle',text:e.type})));
-  mk.sort((a,b)=>a.time-b.time);series.setMarkers(mk);overlay();
+  paint();
   if(first){ts.setVisibleLogicalRange({from:A.n-90,to:A.n+8});first=false}
   sel=-1;mark();
  }catch(e){err=e.message}
@@ -129,10 +159,17 @@ async function load(){
 let zl=[];
 function overlay(){
  zl.forEach(l=>series.removePriceLine(l));zl=[];
- const px=A.c[A.n-1].c,add=(price,color,title,st)=>zl.push(series.createPriceLine({price,color,lineWidth:1,lineStyle:st,axisLabelVisible:false,title}));
- A.Z.filter(z=>!z.dead&&z.i0>=A.n-200).sort((a,b)=>Math.abs((a.top+a.bot)/2-px)-Math.abs((b.top+b.bot)/2-px)).slice(0,6).forEach(z=>{
-  const c=z.dir===1?'#3ddc97':'#ff5d73',st=z.kind==='OB'?0:2;add(z.top,c,z.kind+(z.dir===1?' bull':' bear'),st);add(z.bot,c,'',st)});
- [[A.liqH.slice(-3),'BSL','EQH'],[A.liqL.slice(-3),'SSL','EQL']].forEach(([a,t,e])=>a.forEach(s=>add(s.p,'#e8b04a',s.eq?e:t,1)));
+ const px=A.c[A.n-1].c;
+ const zs=A.Z.filter(z=>!z.dead&&z.i0>=A.n-250).sort((a,b)=>Math.abs((a.top+a.bot)/2-px)-Math.abs((b.top+b.bot)/2-px)).slice(0,6);
+ zp.set(zs.map(z=>{const c=z.kind==='OB'?TH.ob:TH.fvg;return{t:z.t,top:z.top,bot:z.bot,fill:hexA(c,.2),line:c,label:z.kind+(z.dir===1?' \u25B2':' \u25BC')}}));
+ const up=A.liqH.filter(s=>s.p>px).sort((a,b)=>a.p-b.p).slice(0,2),dn=A.liqL.filter(s=>s.p<px).sort((a,b)=>b.p-a.p).slice(0,2);
+ up.concat(dn).forEach(s=>zl.push(series.createPriceLine({price:s.p,color:TH.liq,lineWidth:1,lineStyle:1,axisLabelVisible:true,title:s.type==='H'?(s.eq?'EQH':'BSL'):(s.eq?'EQL':'SSL')})));
+}
+function paint(){
+ if(!A)return;
+ const mk=A.sweeps.filter(w=>w.j>=A.n-150).slice(-6).map(w=>({time:w.t,position:w.side==='H'?'aboveBar':'belowBar',color:w.side==='H'?TH.dn:TH.up,shape:w.side==='H'?'arrowDown':'arrowUp',text:'sweep'}))
+  .concat(A.EV.slice(-8).map(e=>({time:e.t,position:e.dir===1?'belowBar':'aboveBar',color:e.dir===1?TH.up:TH.dn,shape:'circle',text:e.type})));
+ mk.sort((a,b)=>a.time-b.time);series.setMarkers(mk);overlay();
 }
 const nm=v=>v>0?'Bullish':v<0?'Bearish':'Range';
 function mark(){lines.forEach(l=>series.removePriceLine(l));lines=[];
@@ -148,33 +185,17 @@ function render(){
  E.forEach((o,i)=>{h+=`<div class="card ${i===sel?'sel':''}" data-i="${i}"><div class="hd"><span class="rt ${o.r[0]==='A'?'':o.r}">${o.r} · ${o.s}</span><span class="${o.d>0?'buy':'sell'}">${o.d>0?'BUY':'SELL'} limit${o.inz?' · price in zone':''}</span><span class="mut">${o.z.kind}</span></div>
  <div class="px">Entry ${f(o.entry)} · SL ${f(o.sl)} · TP ${f(o.tp)} · RR ${o.rr.toFixed(1)}</div>
  <ul class="why">${o.why.map(w=>`<li>${w}</li>`).join('')}</ul></div>`});
- h+=`<details ${key?'':'open'}><summary class="mut">API key</summary><input id="k" placeholder="Twelve Data API key" value="${key}"><button id="sv">Save key</button>
+ h+=themeUI();h+=`<details ${key?'':'open'}><summary class="mut">API key</summary><input id="k" placeholder="Twelve Data API key" value="${key}"><button id="sv">Save key</button>
  <div class="mut" style="margin-top:6px">Free key at twelvedata.com. Analysis aid only, not advice. Check exact levels on your MT5 chart before entering. Times are UTC.</div></details>`;
  $('#panel').innerHTML=h;
  $('#sv').onclick=()=>{key=$('#k').value.trim();ls('key',key);first=true;load()};
+ const sv=()=>ls('th',JSON.stringify(TH));
+ $('#th').ontoggle=e=>{thOpen=e.target.open};
+ document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{TH=Object.assign({},PRE[b.dataset.p]);sv();applyTheme();document.querySelectorAll('[data-c]').forEach(i=>i.value=TH[i.dataset.c])});
+ document.querySelectorAll('[data-c]').forEach(i=>i.oninput=()=>{TH[i.dataset.c]=i.value;sv();applyTheme()});
  document.querySelectorAll('.card').forEach(el=>el.onclick=()=>{sel=sel===+el.dataset.i?-1:+el.dataset.i;mark();render()});
 }
-function draw(){
- const w=box.clientWidth,h=box.clientHeight,r=devicePixelRatio||1;
- if(cv.width!==Math.round(w*r)||cv.height!==Math.round(h*r)){cv.width=w*r;cv.height=h*r}
- ctx.setTransform(r,0,0,r,0,0);ctx.clearRect(0,0,w,h);return;
- const X=t=>{const x=ts.timeToCoordinate(t);return x==null?-20:x},Y=p=>series.priceToCoordinate(p),px=A.c[A.n-1].c;
- ctx.font='bold 11px system-ui';ctx.lineWidth=1.5;ctx.textBaseline='alphabetic';
- const zs=A.Z.filter(z=>!z.dead&&z.i0>=A.n-200).sort((a,b)=>Math.abs((a.top+a.bot)/2-px)-Math.abs((b.top+b.bot)/2-px)).slice(0,8);
- for(const z of zs){const y1=Y(z.top),y2=Y(z.bot);if(y1==null||y2==null)continue;
-  const x=X(z.t),col=z.dir===1?'61,220,151':'255,93,115';
-  ctx.fillStyle=`rgba(${col},${z.kind==='OB'?.34:.22})`;ctx.fillRect(x,y1,w-x,y2-y1);
-  ctx.strokeStyle=`rgba(${col},.75)`;ctx.setLineDash(z.kind==='OB'?[]:[3,3]);ctx.strokeRect(x,y1,w-x+2,y2-y1);
-  ctx.fillStyle=`rgb(${col})`;ctx.fillText(z.kind,Math.max(x,0)+4,y1+10)}
- ctx.setLineDash([5,4]);
- for(const e of A.EV.slice(-6)){const y=Y(e.sw.p);if(y==null)continue;const x1=X(e.sw.t),x2=X(e.t),col=e.dir===1?'#3ddc97':'#ff5d73';
-  ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.stroke();
-  ctx.fillStyle=col;ctx.fillText(e.type,(x1+x2)/2-10,e.dir===1?y-4:y+11)}
- ctx.strokeStyle='#e8b04a';ctx.fillStyle='#e8b04a';
- for(const[arr,tag]of[[A.liqH.slice(-3),'BSL'],[A.liqL.slice(-3),'SSL']])for(const s of arr){const y=Y(s.p);if(y==null)continue;const x=X(s.t);
-  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(w,y);ctx.stroke();ctx.fillText(s.eq?(tag==='BSL'?'EQH':'EQL'):tag,Math.max(w-60,x+4),y-3)}
- ctx.setLineDash([]);
-}
+function draw(){}
 let rq;const redraw=()=>{cancelAnimationFrame(rq);rq=requestAnimationFrame(draw)};
 ts.subscribeVisibleLogicalRangeChange(redraw);
 ['pointermove','touchmove','wheel','pointerup'].forEach(ev=>box.addEventListener(ev,redraw,{passive:true}));
@@ -184,5 +205,6 @@ $('#tfs').innerHTML=Object.keys(TFS).map(t=>`<button data-t="${t}" class="${t===
 $('#tfs').onclick=e=>{const t=e.target.dataset.t;if(!t)return;tf=t;ls('tf',t);first=true;document.querySelectorAll('#tfs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));load()};
 $('#rf').onclick=load;
 setInterval(()=>{if(!document.hidden)load()},120000);
+applyTheme();
 load();
 </script></body></html>
