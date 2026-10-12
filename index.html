@@ -102,7 +102,7 @@ function analyse(c){
   if(z){z.kind='FVG';z.i0=i-1;z.t=c[i-1].t;chk(z,i+1);Z.push(z)}}
  for(const e of EV){if(!e.org)continue;
   for(let j=e.i-1;j>=Math.max(0,e.org.i-2);j--){const bear=c[j].c<c[j].o;
-   if(e.dir===1?bear:!bear){const z={kind:'OB',dir:e.dir,top:c[j].h,bot:c[j].l,i0:j,t:c[j].t};chk(z,e.i+1);Z.push(z);break}}}
+   if(e.dir===1?bear:!bear){const bt=Math.max(c[j].o,c[j].c),bb=Math.min(c[j].o,c[j].c),body=bt-bb>=.15*atr;const z={kind:'OB',dir:e.dir,top:body?bt:c[j].h,bot:body?bb:c[j].l,i0:j,t:c[j].t};chk(z,e.i+1);Z.push(z);break}}}
  for(const s of SW)for(let j=s.i+k+1;j<n;j++){const H=s.type==='H';
   if(H?c[j].h>s.p:c[j].l<s.p){if(H?c[j].c<s.p:c[j].c>s.p){s.st='swept';sweeps.push({j,t:c[j].t,p:H?c[j].h:c[j].l,side:s.type})}else s.st='broken';break}}
  sweeps.sort((a,b)=>a.j-b.j);
@@ -160,7 +160,11 @@ let zl=[];
 function overlay(){
  zl.forEach(l=>series.removePriceLine(l));zl=[];
  const px=A.c[A.n-1].c;
- const zs=A.Z.filter(z=>!z.dead&&z.i0>=A.n-250).sort((a,b)=>Math.abs((a.top+a.bot)/2-px)-Math.abs((b.top+b.bot)/2-px)).slice(0,6);
+ const key=z=>Math.abs((z.top+z.bot)/2-px)*(z.kind==='OB'?.8:1);
+ const ov=(a,b)=>Math.min(a.top,b.top)-Math.max(a.bot,b.bot)>.5*Math.min(a.top-a.bot,b.top-b.bot);
+ const zs=E.map(o=>o.z).filter(z=>!z.dead);
+ for(const z of A.Z.filter(z=>!z.dead&&z.i0>=A.n-250).sort((a,b)=>key(a)-key(b))){
+  if(zs.length>=6)break;if(zs.includes(z)||zs.some(k=>ov(k,z)))continue;zs.push(z)}
  zp.set(zs.map(z=>{const c=z.kind==='OB'?TH.ob:TH.fvg;return{t:z.t,top:z.top,bot:z.bot,fill:hexA(c,.2),line:c,label:z.kind+(z.dir===1?' \u25B2':' \u25BC')}}));
  const up=A.liqH.filter(s=>s.p>px).sort((a,b)=>a.p-b.p).slice(0,2),dn=A.liqL.filter(s=>s.p<px).sort((a,b)=>b.p-a.p).slice(0,2);
  up.concat(dn).forEach(s=>zl.push(series.createPriceLine({price:s.p,color:TH.liq,lineWidth:1,lineStyle:1,axisLabelVisible:true,title:s.type==='H'?(s.eq?'EQH':'BSL'):(s.eq?'EQL':'SSL')})));
