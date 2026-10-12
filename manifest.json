@@ -1,0 +1,19 @@
+{
+  "name": "ICT Analyzer",
+  "short_name": "ICT",
+  "description": "Market structure, liquidity, FVG and order block analysis with rated entries",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050806",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

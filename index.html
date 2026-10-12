@@ -3,6 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d1117"><meta name="apple-mobile-web-app-capable" content="yes">
 <title>ICT Analyzer</title>
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon.png"><link rel="apple-touch-icon" href="icon.png">
 <style>
 :root{--bg:#0d1117;--pn:#151b23;--ln:#262e38;--tx:#d7dde5;--mut:#7d8896;--up:#3ddc97;--dn:#ff5d73;--gd:#e8b04a}
 *{box-sizing:border-box}
@@ -211,4 +212,5 @@ $('#rf').onclick=load;
 setInterval(()=>{if(!document.hidden)load()},120000);
 applyTheme();
 load();
-</script></body></html>
+</script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});</script>
+</body></html>
