@@ -30,7 +30,7 @@ details{margin-top:6px}input{width:100%;margin:6px 0}
 </style></head><body>
 <div id="top">
  <select id="sym"><option>XAU/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select>
- <span id="tfs"></span><button id="rf">Refresh</button><button id="ss">Sessions</button>
+ <span id="tfs"></span><button id="rf">Refresh</button><button id="ss">Sessions</button><button id="vp">Profile</button>
 </div>
 <div id="st">Loading…</div>
 <div id="wrap"><div id="ch"></div></div>
@@ -84,6 +84,40 @@ class SP{constructor(){this.runs=[];this.on=ls('ss')!=='0';this.pv={renderer:()=
  paneViews(){return[this.pv]}
  set(r){this.runs=r;if(this.req)this.req()}}
 const sp=new SP();series.attachPrimitive(sp);
+function profile(cs){let lo=Infinity,hi=-Infinity,nv=0;
+ for(const x of cs){if(x.l<lo)lo=x.l;if(x.h>hi)hi=x.h;if(x.v>0)nv++}
+ if(!(hi>lo))return null;
+ const N=60,bs=(hi-lo)/N,useV=nv>=.9*cs.length,B=new Array(N).fill(0);
+ for(const x of cs){const w=useV?x.v:1,i0=Math.min(N-1,Math.floor((x.l-lo)/bs)),i1=Math.min(N-1,Math.floor((x.h-lo)/bs)),q=w/(i1-i0+1);for(let i=i0;i<=i1;i++)B[i]+=q}
+ let poc=0;for(let i=1;i<N;i++)if(B[i]>B[poc])poc=i;
+ const tot=B.reduce((a,b)=>a+b,0);let va=B[poc],u=poc,d=poc;
+ while(va<.7*tot){const cu=u<N-1,cd=d>0;if(!cu&&!cd)break;
+  if(cu&&(!cd||B[u+1]>=B[d-1])){u++;va+=B[u]}else{d--;va+=B[d]}}
+ return{lo,bs,B,poc,u,d,max:B[poc],useV,N}}
+class VR{constructor(p){this.p=p}
+ draw(t){t.useMediaCoordinateSpace(({context:c,mediaSize:m})=>{const P=this.p;if(!P.chart||!P.on||P.c.length<5)return;
+  const r=P.chart.timeScale().getVisibleLogicalRange();if(!r)return;
+  const a=Math.max(0,Math.floor(r.from)),b=Math.min(P.c.length-1,Math.ceil(r.to));if(b-a<3)return;
+  const z=P.c[P.c.length-1],k=a+'|'+b+'|'+P.c.length+'|'+z.h+'|'+z.l+'|'+z.c;
+  if(P.k!==k){P.k=k;P.pf=profile(P.c.slice(a,b+1))}
+  const f=P.pf;if(!f)return;const S=P.series,maxW=m.width*.28;
+  for(let i=0;i<f.N;i++){if(f.B[i]<=0)continue;
+   const yt=S.priceToCoordinate(f.lo+(i+1)*f.bs),yb=S.priceToCoordinate(f.lo+i*f.bs);if(yt==null||yb==null)continue;
+   const w=f.B[i]/f.max*maxW;
+   c.fillStyle=i===f.poc?hexA(TH.liq,.55):i>=f.d&&i<=f.u?hexA(TH.fvg,.3):hexA(TH.mut,.22);
+   c.fillRect(m.width-w,yt,w,Math.max(1,yb-yt-.5))}
+  const L=[[f.lo+(f.poc+.5)*f.bs,'POC',TH.liq,0],[f.lo+(f.u+1)*f.bs,'VAH',TH.fvg,1],[f.lo+f.d*f.bs,'VAL',TH.fvg,1]];
+  c.font='bold 10px system-ui';c.textAlign='left';
+  for(const [p,n,col,ds] of L){const y=S.priceToCoordinate(p);if(y==null)continue;
+   c.strokeStyle=hexA(col,.85);c.lineWidth=1;c.setLineDash(ds?[3,3]:[]);c.beginPath();c.moveTo(0,y);c.lineTo(m.width,y);c.stroke();c.setLineDash([]);
+   c.fillStyle=hexA(col,1);c.fillText(n+' '+p.toFixed(P.dg),4,y-3)}
+  c.textAlign='right';c.fillStyle=hexA(TH.mut,1);c.fillText('Profile \u00b7 '+(f.useV?'volume':'time at price'),m.width-4,24);c.textAlign='left'})}}
+class VP{constructor(){this.c=[];this.k=null;this.pf=null;this.dg=2;this.on=ls('vp')!=='0';this.pv={renderer:()=>new VR(this),zOrder:()=>'bottom'}}
+ attached(a){this.chart=a.chart;this.series=a.series;this.req=a.requestUpdate}
+ detached(){this.chart=null}
+ paneViews(){return[this.pv]}
+ set(c){this.c=c;this.k=null;if(this.req)this.req()}}
+const vp=new VP();series.attachPrimitive(vp);
 const PRE={
  Dark:{bg:'#0d1117',pn:'#151b23',tx:'#d7dde5',ln:'#262e38',gr:'#161d26',mut:'#7d8896',up:'#3ddc97',dn:'#ff5d73',fvg:'#4aa3ff',ob:'#b58cff',liq:'#e8b04a'},
  Black:{bg:'#000000',pn:'#0b0b0b',tx:'#e6e6e6',ln:'#222222',gr:'#141414',mut:'#888888',up:'#00c853',dn:'#e53935',fvg:'#29b6f6',ob:'#ab47bc',liq:'#ffb300'},
@@ -107,7 +141,7 @@ function themeUI(){
 async function td(s,i,size){
  const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(s)}&interval=${i}&outputsize=${size}&order=ASC&timezone=UTC&apikey=${key}`);
  const j=await r.json(); if(j.status==='error'||!j.values)throw new Error(j.message||'No data');
- return j.values.map(v=>{const d=v.datetime,t=Date.parse(d.length<11?d+'T00:00:00Z':d.replace(' ','T')+'Z')/1000;return{t,o:+v.open,h:+v.high,l:+v.low,c:+v.close}});
+ return j.values.map(v=>{const d=v.datetime,t=Date.parse(d.length<11?d+'T00:00:00Z':d.replace(' ','T')+'Z')/1000;return{t,o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+v.volume||0}});
 }
 const atrOf=c=>{let s=0,m=Math.min(14,c.length-1);for(let i=c.length-m;i<c.length;i++){const p=c[i-1];s+=Math.max(c[i].h-c[i].l,Math.abs(c[i].h-p.c),Math.abs(c[i].l-p.c))}return s/m};
 const kz=t=>{const h=new Date(t*1000).getUTCHours();return h>=7&&h<10?'London':h>=12&&h<15?'New York':''};
@@ -174,7 +208,7 @@ async function load(){
   const[i,h]=TFS[tf],c=await td(sym,i,500),ck=sym+h;
   if(!cache[ck]||Date.now()-cache[ck].at>6e5)cache[ck]={at:Date.now(),d:await td(sym,h,300)};
   A=analyse(c);htf=analyse(cache[ck].d).trend;E=entries(A,htf);err='';evalT(c);sp.set(sessRuns(c));
-  const p=sym.includes('JPY')?3:sym.includes('XAU')?2:5;
+  const p=sym.includes('JPY')?3:sym.includes('XAU')?2:5;vp.set(c);vp.dg=p;
   series.applyOptions({priceFormat:{type:'price',precision:p,minMove:1/10**p}});
   series.setData(c.map(x=>({time:x.t,open:x.o,high:x.h,low:x.l,close:x.c})));
   paint();
@@ -286,6 +320,7 @@ $('#sym').value=sym;$('#sym').onchange=e=>{sym=e.target.value;ls('sym',sym);A=nu
 $('#tfs').innerHTML=Object.keys(TFS).map(t=>`<button data-t="${t}" class="${t===tf?'on':''}">${t}</button>`).join(' ');
 $('#tfs').onclick=e=>{const t=e.target.dataset.t;if(!t)return;tf=t;ls('tf',t);first=true;document.querySelectorAll('#tfs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));load()};
 $('#rf').onclick=load;
+$('#vp').classList.toggle('on',vp.on);$('#vp').onclick=()=>{vp.on=!vp.on;ls('vp',vp.on?'1':'0');$('#vp').classList.toggle('on',vp.on);vp.set(vp.c)};
 $('#ss').classList.toggle('on',sp.on);$('#ss').onclick=()=>{sp.on=!sp.on;ls('ss',sp.on?'1':'0');$('#ss').classList.toggle('on',sp.on);sp.set(sp.runs)};
 setInterval(()=>{if(!document.hidden)load()},120000);
 applyTheme();
