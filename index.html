@@ -13,9 +13,10 @@ body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
 select,button,input{font:inherit;color:var(--tx);background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:6px 10px}
 button.on{border-color:var(--gd);color:var(--gd)}
 #st{padding:6px 10px;color:var(--mut);font-size:12px;border-bottom:1px solid var(--ln)}
-#wrap{flex:1;min-height:240px;position:relative;overflow:hidden}
+#wrap{flex:1;min-height:300px;position:relative;overflow:hidden}
 #ch,#cv{position:absolute;left:0;top:0;width:100%;height:100%}#cv{pointer-events:none}
-#panel{max-height:44%;overflow:auto;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:var(--pn);border-top:1px solid var(--ln)}
+#panel.off{display:none}
+#panel{max-height:30%;overflow:auto;padding:8px 8px calc(8px + env(safe-area-inset-bottom));background:var(--pn);border-top:1px solid var(--ln)}
 .card{border:1px solid var(--ln);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--bg)}
 .card.sel{border-color:var(--gd)}
 .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -30,7 +31,7 @@ details{margin-top:6px}input{width:100%;margin:6px 0}
 </style></head><body>
 <div id="top">
  <select id="sym"><option>XAU/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select>
- <span id="tfs"></span><button id="rf">Refresh</button><button id="ss">Sessions</button><button id="vp">Profile</button><button id="rg">Range</button>
+ <span id="tfs"></span><button id="rf">Refresh</button><button id="ss">Sessions</button><button id="vp">Profile</button><button id="rg">Range</button><button id="hf">FVG</button><button id="ho">OB</button><button id="pn">Panel</button>
 </div>
 <div id="st">Loading…</div>
 <div id="wrap"><div id="ch"></div></div>
@@ -50,11 +51,11 @@ const series=chart.addCandlestickSeries({upColor:'#3ddc97',downColor:'#ff5d73',b
 const ts=chart.timeScale();
 class ZR{constructor(p){this.p=p}
  draw(t){t.useMediaCoordinateSpace(({context:c,mediaSize:m})=>{const P=this.p;if(!P.chart)return;
-  for(const z of P.zs){const y1=P.series.priceToCoordinate(z.top),y2=P.series.priceToCoordinate(z.bot);if(y1==null||y2==null)continue;
+  for(const z of P.zs){if(P.hide[z.kind])continue;const y1=P.series.priceToCoordinate(z.top),y2=P.series.priceToCoordinate(z.bot);if(y1==null||y2==null)continue;
    let x=P.chart.timeScale().timeToCoordinate(z.t);x=x==null?0:Math.max(0,x);
    c.fillStyle=z.fill;c.fillRect(x,y1,m.width-x,y2-y1);c.strokeStyle=z.line;c.lineWidth=1;c.strokeRect(x+.5,y1+.5,m.width-x,y2-y1);
    c.fillStyle=z.line;c.font='bold 10px system-ui';c.fillText(z.label,x+4,y1+11)}})}}
-class ZP{constructor(){this.zs=[];this.pv={renderer:()=>new ZR(this),zOrder:()=>'bottom'}}
+class ZP{constructor(){this.zs=[];this.hide={FVG:ls('hf')==='1',OB:ls('ho')==='1'};this.pv={renderer:()=>new ZR(this),zOrder:()=>'bottom'}}
  attached(a){this.chart=a.chart;this.series=a.series;this.req=a.requestUpdate}
  detached(){this.chart=null}
  paneViews(){return[this.pv]}
@@ -233,7 +234,7 @@ function overlay(){
  const zs=E.map(o=>o.z).filter(z=>!z.dead);
  for(const z of A.Z.filter(z=>!z.dead&&z.i0>=A.n-250).sort((a,b)=>key(a)-key(b))){
   if(zs.length>=6)break;if(zs.includes(z)||zs.some(k=>ov(k,z)))continue;zs.push(z)}
- zp.set(zs.map(z=>{const c=z.kind==='OB'?TH.ob:TH.fvg;return{t:z.t,top:z.top,bot:z.bot,fill:hexA(c,.2),line:c,label:z.kind+(z.dir===1?' \u25B2':' \u25BC')}}));
+ zp.set(zs.map(z=>{const c=z.kind==='OB'?TH.ob:TH.fvg;return{kind:z.kind,t:z.t,top:z.top,bot:z.bot,fill:hexA(c,.2),line:c,label:z.kind+(z.dir===1?' \u25B2':' \u25BC')}}));
  const up=A.liqH.filter(s=>s.p>px).sort((a,b)=>a.p-b.p).slice(0,2),dn=A.liqL.filter(s=>s.p<px).sort((a,b)=>b.p-a.p).slice(0,2);
  up.concat(dn).forEach(s=>zl.push(series.createPriceLine({price:s.p,color:TH.liq,lineWidth:1,lineStyle:1,axisLabelVisible:true,title:s.type==='H'?(s.eq?'EQH':'BSL'):(s.eq?'EQL':'SSL')})));
 }
@@ -340,6 +341,11 @@ chart.subscribeClick(p=>{if(!pick||p.time==null)return;
  else{if(p.time===rgA)return;vp.rg=[Math.min(rgA,p.time),Math.max(rgA,p.time)];ls('vpr',JSON.stringify(vp.rg));pick=0;
   vp.on=true;ls('vp','1');$('#vp').classList.add('on');vp.set(vp.c)}
  rgBtn();render()});
+const zb=()=>{$('#hf').classList.toggle('on',!zp.hide.FVG);$('#ho').classList.toggle('on',!zp.hide.OB)};zb();
+$('#hf').onclick=()=>{zp.hide.FVG=!zp.hide.FVG;ls('hf',zp.hide.FVG?'1':'0');zb();zp.set(zp.zs)};
+$('#ho').onclick=()=>{zp.hide.OB=!zp.hide.OB;ls('ho',zp.hide.OB?'1':'0');zb();zp.set(zp.zs)};
+const pb=()=>{const off=ls('pn')==='0';$('#panel').classList.toggle('off',off);$('#pn').classList.toggle('on',!off)};pb();
+$('#pn').onclick=()=>{ls('pn',ls('pn')==='0'?'1':'0');pb()};
 setInterval(()=>{if(!document.hidden)load()},120000);
 applyTheme();
 load();
