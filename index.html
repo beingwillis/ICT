@@ -30,7 +30,7 @@ details{margin-top:6px}input{width:100%;margin:6px 0}
 </style></head><body>
 <div id="top">
  <select id="sym"><option>XAU/USD</option><option>EUR/USD</option><option>GBP/USD</option><option>USD/JPY</option></select>
- <span id="tfs"></span><button id="rf">Refresh</button><button id="ss">Sessions</button><button id="vp">Profile</button>
+ <span id="tfs"></span><button id="rf">Refresh</button><button id="ss">Sessions</button><button id="vp">Profile</button><button id="rg">Range</button>
 </div>
 <div id="st">Loading…</div>
 <div id="wrap"><div id="ch"></div></div>
@@ -96,23 +96,30 @@ function profile(cs){let lo=Infinity,hi=-Infinity,nv=0;
  return{lo,bs,B,poc,u,d,max:B[poc],useV,N}}
 class VR{constructor(p){this.p=p}
  draw(t){t.useMediaCoordinateSpace(({context:c,mediaSize:m})=>{const P=this.p;if(!P.chart||!P.on||P.c.length<5)return;
-  const r=P.chart.timeScale().getVisibleLogicalRange();if(!r)return;
-  const a=Math.max(0,Math.floor(r.from)),b=Math.min(P.c.length-1,Math.ceil(r.to));if(b-a<3)return;
-  const z=P.c[P.c.length-1],k=a+'|'+b+'|'+P.c.length+'|'+z.h+'|'+z.l+'|'+z.c;
-  if(P.k!==k){P.k=k;P.pf=profile(P.c.slice(a,b+1))}
-  const f=P.pf;if(!f)return;const S=P.series,maxW=m.width*.28;
-  for(let i=0;i<f.N;i++){if(f.B[i]<=0)continue;
+  const T=P.chart.timeScale(),z=P.c[P.c.length-1],fx=!!P.rg;let a=0,b=0;
+  if(!fx){const r=T.getVisibleLogicalRange();if(!r)return;a=Math.max(0,Math.floor(r.from));b=Math.min(P.c.length-1,Math.ceil(r.to));if(b-a<3)return}
+  const k=(fx?'F'+P.rg[0]+'|'+P.rg[1]:a+'|'+b)+'|'+P.c.length+'|'+z.h+'|'+z.l+'|'+z.c;
+  if(P.k!==k){P.k=k;const cs=fx?P.c.filter(x=>x.t>=P.rg[0]&&x.t<=P.rg[1]):P.c.slice(a,b+1);
+   P.pf=cs.length>=3?profile(cs):null;P.ft=cs.length?cs[0].t:0;P.lt=cs.length?cs[cs.length-1].t:0}
+  const f=P.pf;if(!f)return;const S=P.series;let x0=0,x1=m.width;
+  if(fx){const q=T.timeToCoordinate(P.ft),w=T.timeToCoordinate(P.lt);x0=Math.max(0,q==null?0:q);x1=w==null?m.width:w;
+   if(x1>x0){c.fillStyle=hexA(TH.mut,.07);c.fillRect(x0,0,x1-x0,m.height)}
+   c.strokeStyle=hexA(TH.mut,.6);c.lineWidth=1;c.setLineDash([2,3]);
+   for(const [xx,ok] of [[q,q!=null&&q>=0],[w,w!=null&&w>=0&&w<=m.width]])if(ok){c.beginPath();c.moveTo(xx,0);c.lineTo(xx,m.height);c.stroke()}
+   c.setLineDash([])}
+  const maxW=fx?Math.min(m.width*.28,m.width-x0-4):m.width*.28;
+  if(maxW>=10)for(let i=0;i<f.N;i++){if(f.B[i]<=0)continue;
    const yt=S.priceToCoordinate(f.lo+(i+1)*f.bs),yb=S.priceToCoordinate(f.lo+i*f.bs);if(yt==null||yb==null)continue;
    const w=f.B[i]/f.max*maxW;
    c.fillStyle=i===f.poc?hexA(TH.liq,.55):i>=f.d&&i<=f.u?hexA(TH.fvg,.3):hexA(TH.mut,.22);
-   c.fillRect(m.width-w,yt,w,Math.max(1,yb-yt-.5))}
-  const L=[[f.lo+(f.poc+.5)*f.bs,'POC',TH.liq,0],[f.lo+(f.u+1)*f.bs,'VAH',TH.fvg,1],[f.lo+f.d*f.bs,'VAL',TH.fvg,1]];
+   c.fillRect(fx?x0:m.width-w,yt,w,Math.max(1,yb-yt-.5))}
+  const L=[[f.lo+(f.poc+.5)*f.bs,'POC',TH.liq,0],[f.lo+(f.u+1)*f.bs,'VAH',TH.fvg,1],[f.lo+f.d*f.bs,'VAL',TH.fvg,1]],lx=fx?x0:0;
   c.font='bold 10px system-ui';c.textAlign='left';
   for(const [p,n,col,ds] of L){const y=S.priceToCoordinate(p);if(y==null)continue;
-   c.strokeStyle=hexA(col,.85);c.lineWidth=1;c.setLineDash(ds?[3,3]:[]);c.beginPath();c.moveTo(0,y);c.lineTo(m.width,y);c.stroke();c.setLineDash([]);
-   c.fillStyle=hexA(col,1);c.fillText(n+' '+p.toFixed(P.dg),4,y-3)}
-  c.textAlign='right';c.fillStyle=hexA(TH.mut,1);c.fillText('Profile \u00b7 '+(f.useV?'volume':'time at price'),m.width-4,24);c.textAlign='left'})}}
-class VP{constructor(){this.c=[];this.k=null;this.pf=null;this.dg=2;this.on=ls('vp')!=='0';this.pv={renderer:()=>new VR(this),zOrder:()=>'bottom'}}
+   c.strokeStyle=hexA(col,.85);c.lineWidth=1;c.setLineDash(ds?[3,3]:[]);c.beginPath();c.moveTo(lx,y);c.lineTo(m.width,y);c.stroke();c.setLineDash([]);
+   c.fillStyle=hexA(col,1);c.fillText(n+' '+p.toFixed(P.dg),lx+4,y-3)}
+  c.textAlign='right';c.fillStyle=hexA(TH.mut,1);c.fillText((fx?'Fixed range':'Profile')+' \u00b7 '+(f.useV?'volume':'time at price'),m.width-4,24);c.textAlign='left'})}}
+class VP{constructor(){this.c=[];this.k=null;this.pf=null;this.rg=null;this.ft=0;this.lt=0;this.dg=2;this.on=ls('vp')!=='0';this.pv={renderer:()=>new VR(this),zOrder:()=>'bottom'}}
  attached(a){this.chart=a.chart;this.series=a.series;this.req=a.requestUpdate}
  detached(){this.chart=null}
  paneViews(){return[this.pv]}
@@ -245,6 +252,7 @@ function render(){
  const f=x=>x.toFixed(sym.includes('JPY')?3:sym.includes('XAU')?2:5);
  if(A){const c=A.c[A.n-1];$('#st').textContent=`${f(c.c)} · ${tf} ${nm(A.trend)} · HTF ${TFS[tf][1]} ${nm(htf)} · ${kz(c.t)||'Outside killzone'} · ${A.Z.filter(z=>!z.dead).length} zones · ${A.EV.length} struct · ${A.liqH.length+A.liqL.length} liq`}
  else $('#st').textContent=key?'Loading…':'Add your API key to start';
+ if(pick)$('#st').textContent=pick===1?'Tap the START candle of the range':'Tap the END candle of the range';
  let h='';
  if(err)h+=`<div class="err" style="margin-bottom:8px">${err}</div>`;
  if(A&&!E.length)h+='<div class="mut" style="margin-bottom:8px">No clean setup right now. Waiting is a valid position.</div>';
@@ -322,6 +330,16 @@ $('#tfs').onclick=e=>{const t=e.target.dataset.t;if(!t)return;tf=t;ls('tf',t);fi
 $('#rf').onclick=load;
 $('#vp').classList.toggle('on',vp.on);$('#vp').onclick=()=>{vp.on=!vp.on;ls('vp',vp.on?'1':'0');$('#vp').classList.toggle('on',vp.on);vp.set(vp.c)};
 $('#ss').classList.toggle('on',sp.on);$('#ss').onclick=()=>{sp.on=!sp.on;ls('ss',sp.on?'1':'0');$('#ss').classList.toggle('on',sp.on);sp.set(sp.runs)};
+let pick=0,rgA=0;
+try{vp.rg=JSON.parse(ls('vpr')||'null')}catch(e){vp.rg=null}
+const rgBtn=()=>{const b=$('#rg');b.classList.toggle('on',!!(vp.rg||pick));b.textContent=vp.rg?'Range \u2715':pick?'Cancel':'Range'};
+rgBtn();
+$('#rg').onclick=()=>{if(vp.rg){vp.rg=null;ls('vpr','');vp.set(vp.c)}else pick=pick?0:1;rgBtn();render()};
+chart.subscribeClick(p=>{if(!pick||p.time==null)return;
+ if(pick===1){rgA=p.time;pick=2}
+ else{if(p.time===rgA)return;vp.rg=[Math.min(rgA,p.time),Math.max(rgA,p.time)];ls('vpr',JSON.stringify(vp.rg));pick=0;
+  vp.on=true;ls('vp','1');$('#vp').classList.add('on');vp.set(vp.c)}
+ rgBtn();render()});
 setInterval(()=>{if(!document.hidden)load()},120000);
 applyTheme();
 load();
